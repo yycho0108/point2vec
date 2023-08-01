@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+# from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from pytorch_lightning.loggers import WandbLogger
 from sklearn.svm import SVC
 from torch.utils.data import DataLoader
@@ -21,7 +21,7 @@ class Point2Vec(pl.LightningModule):
         self,
         tokenizer_num_groups: int = 64,
         tokenizer_group_size: int = 32,
-        tokenizer_group_radius: float | None = None,
+        tokenizer_group_radius: Optional[float] = None,
         d2v_masking_ratio: float = 0.65,
         d2v_masking_type: str = "rand",  # rand, block
         encoder_dim: int = 384,
@@ -164,13 +164,12 @@ class Point2Vec(pl.LightningModule):
                 nn.Linear(encoder_dim, encoder_dim),
             )
 
-        match loss:
-            case "mse":
-                self.loss_func = nn.MSELoss()
-            case "smooth_l1":
-                self.loss_func = nn.SmoothL1Loss(beta=2)
-            case _:
-                raise ValueError(f"Unknown loss: {loss}")
+        if loss == "mse":
+            self.loss_func = nn.MSELoss()
+        elif loss == "smooth_l1":
+            self.loss_func = nn.SmoothL1Loss(beta=2)
+        elif loss == _:
+            raise ValueError(f"Unknown loss: {loss}")
 
     def setup(self, stage: Optional[str] = None) -> None:
         self.teacher = EMA(
@@ -214,6 +213,7 @@ class Point2Vec(pl.LightningModule):
         embeddings: torch.Tensor,
         centers: torch.Tensor,
         mask: torch.Tensor,
+        return_embeddings: bool=False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # tokens: (B, T, C)
         # centers: (B, T, 3)
@@ -233,6 +233,8 @@ class Point2Vec(pl.LightningModule):
             output_embeddings = self.student(
                 visible_embeddings, visible_pos
             ).last_hidden_state  # (B, T, C)
+            if return_embeddings:
+                return output_embeddings
 
             decoder_output_tokens = self.decoder(
                 torch.cat([output_embeddings, masked_embeddings], dim=1),
@@ -247,6 +249,8 @@ class Point2Vec(pl.LightningModule):
             output_embeddings = self.student(
                 corrupted_embeddings, pos
             ).last_hidden_state  # (B, T, C)
+            if return_embeddings:
+                return output_embeddings
             predictions = self.regressor(output_embeddings[mask])
 
         targets = self.generate_targets(embeddings, pos)[mask]

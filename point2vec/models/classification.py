@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+#from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from pytorch_lightning.loggers import WandbLogger
 from torchmetrics import Accuracy
 
@@ -20,7 +20,7 @@ class Point2VecClassification(pl.LightningModule):
         num_points: int = 1024,
         tokenizer_num_groups: int = 64,
         tokenizer_group_size: int = 32,
-        tokenizer_group_radius: float | None = None,
+        tokenizer_group_radius: Optional[float] = None,
         tokenizer_unfreeze_epoch: int = 0,
         positional_encoding_unfreeze_epoch: int = 0,
         encoder_dim: int = 384,
@@ -47,7 +47,7 @@ class Point2VecClassification(pl.LightningModule):
         lr_scheduler_linear_warmup_epochs: int = 10,
         lr_scheduler_linear_warmup_start_lr: float = 1e-6,
         lr_scheduler_cosine_eta_min: float = 1e-6,
-        pretrained_ckpt_path: str | None = None,
+        pretrained_ckpt_path: Optional[str] = None,
         pretrained_ckpt_ignore_encoder_layers: List[int] = [],
         train_transformations: List[str] = [
             "center",
@@ -134,28 +134,27 @@ class Point2VecClassification(pl.LightningModule):
             add_pos_at_every_layer=encoder_add_pos_at_every_layer,
         )
 
-        match cls_head_pooling:
-            case "cls_token" | "mean+max+cls_token":
-                init_std = 0.02
-                self.cls_token = nn.Parameter(torch.zeros(encoder_dim))
-                nn.init.trunc_normal_(
-                    self.cls_token, mean=0, std=init_std, a=-init_std, b=init_std
-                )
-                self.cls_pos = nn.Parameter(torch.zeros(encoder_dim))
-                nn.init.trunc_normal_(
-                    self.cls_pos, mean=0, std=init_std, a=-init_std, b=init_std
-                )
-                self.first_cls_head_dim = (
-                    encoder_dim if cls_head_pooling == "cls_token" else 3 * encoder_dim
-                )
-            case "mean+max":
-                self.first_cls_head_dim = 2 * encoder_dim
-            case "mean":
-                self.first_cls_head_dim = encoder_dim
-            case "max":
-                self.first_cls_head_dim = encoder_dim
-            case _:
-                raise ValueError()
+        if cls_head_pooling in ("cls_token", "mean+max+cls_token"):
+            init_std = 0.02
+            self.cls_token = nn.Parameter(torch.zeros(encoder_dim))
+            nn.init.trunc_normal_(
+                self.cls_token, mean=0, std=init_std, a=-init_std, b=init_std
+            )
+            self.cls_pos = nn.Parameter(torch.zeros(encoder_dim))
+            nn.init.trunc_normal_(
+                self.cls_pos, mean=0, std=init_std, a=-init_std, b=init_std
+            )
+            self.first_cls_head_dim = (
+                encoder_dim if cls_head_pooling == "cls_token" else 3 * encoder_dim
+            )
+        elif cls_head_pooling == "mean+max":
+            self.first_cls_head_dim = 2 * encoder_dim
+        elif cls_head_pooling == "mean":
+            self.first_cls_head_dim = encoder_dim
+        elif cls_head_pooling == "max":
+            self.first_cls_head_dim = encoder_dim
+        else:
+            raise ValueError()
 
         self.loss_func = nn.CrossEntropyLoss(label_smoothing=loss_label_smoothing)
 
@@ -216,24 +215,23 @@ class Point2VecClassification(pl.LightningModule):
                 [self.cls_pos.reshape(1, 1, C).expand(B, -1, -1), pos_embeddings], dim=1
             )
         tokens = self.encoder(tokens, pos_embeddings).last_hidden_state
-        match self.hparams.cls_head_pooling:  # type: ignore
-            case "cls_token":
-                embedding = tokens[:, 0]
-            case "mean+max":
-                max_features = torch.max(tokens, dim=1).values
-                mean_features = torch.mean(tokens, dim=1)
-                embedding = torch.cat([max_features, mean_features], dim=-1)
-            case "mean+max+cls_token":
-                cls_token = tokens[:, 0]
-                max_features = torch.max(tokens[:, 1:], dim=1).values
-                mean_features = torch.mean(tokens[:, 1:], dim=1)
-                embedding = torch.cat([cls_token, max_features, mean_features], dim=-1)
-            case "mean":
-                embedding = torch.mean(tokens, dim=1)
-            case "max":
-                embedding = torch.max(tokens, dim=1).values
-            case _:
-                raise ValueError(f"Unknown cls_head_pooling: {self.hparams.cls_head_pooling}")  # type: ignore
+        if self.hparams.cls_head_pooling == "cls_token":
+            embedding = tokens[:, 0]
+        elif self.hparams.cls_head_pooling == "mean+max":
+            max_features = torch.max(tokens, dim=1).values
+            mean_features = torch.mean(tokens, dim=1)
+            embedding = torch.cat([max_features, mean_features], dim=-1)
+        elif self.hparams.cls_head_pooling == "mean+max+cls_token":
+            cls_token = tokens[:, 0]
+            max_features = torch.max(tokens[:, 1:], dim=1).values
+            mean_features = torch.mean(tokens[:, 1:], dim=1)
+            embedding = torch.cat([cls_token, max_features, mean_features], dim=-1)
+        elif self.hparams.cls_head_pooling == "mean":
+            embedding = torch.mean(tokens, dim=1)
+        elif self.hparams.cls_head_pooling == "max":
+            embedding = torch.max(tokens, dim=1).values
+        else:
+            raise ValueError(f"Unknown cls_head_pooling: {self.hparams.cls_head_pooling}")  # type: ignore
         logits = (
             self.cls_head(embedding)  # type: ignore
             if isinstance(tokens, torch.Tensor)

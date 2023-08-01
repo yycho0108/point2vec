@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -114,7 +114,7 @@ class Block(nn.Module):
             drop=drop,
         )
 
-    def forward(self, x) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         _x, attn = self.attn(self.norm1(x))
         x = x + self.drop_path(_x)
         ffn = self.mlp(self.norm2(x))
@@ -141,7 +141,7 @@ class TransformerEncoder(nn.Module):
         qk_scale=None,
         drop_rate=0.0,
         attn_drop_rate=0.0,
-        drop_path_rate: float | List[float] = 0.0,
+        drop_path_rate: Union[float, List[float]] = 0.0,
         add_pos_at_every_layer=False,
     ):
         super().__init__()

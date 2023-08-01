@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 import torch.nn as nn
@@ -22,7 +22,7 @@ def fill_empty_indices(idx: torch.Tensor) -> torch.Tensor:
 
 
 class PointcloudGrouping(nn.Module):
-    def __init__(self, num_groups: int, group_size: int, group_radius: float | None):
+    def __init__(self, num_groups: int, group_size: int, group_radius: Optional[float]):
         super().__init__()
         self.num_groups = num_groups
         self.group_size = group_size
@@ -95,7 +95,7 @@ class PointcloudTokenizer(nn.Module):
         self,
         num_groups: int,
         group_size: int,
-        group_radius: float | None,
+        group_radius: Optional[float],
         token_dim: int,
     ) -> None:
         super().__init__()

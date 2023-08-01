@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+# from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from pytorch_lightning.loggers import WandbLogger
 from torchmetrics import Accuracy
 
@@ -20,7 +20,7 @@ class Point2VecPartSegmentation(pl.LightningModule):
         self,
         tokenizer_num_groups: int = 128,
         tokenizer_group_size: int = 32,
-        tokenizer_group_radius: float | None = None,
+        tokenizer_group_radius: Optional[float] = None,
         encoder_dim: int = 384,
         encoder_depth: int = 12,
         encoder_heads: int = 6,
@@ -37,7 +37,7 @@ class Point2VecPartSegmentation(pl.LightningModule):
         lr_scheduler_linear_warmup_epochs: int = 10,
         lr_scheduler_linear_warmup_start_lr: float = 1e-6,
         lr_scheduler_cosine_eta_min: float = 1e-6,
-        pretrained_ckpt_path: str | None = None,
+        pretrained_ckpt_path: Optional[str] = None,
         train_transformations: List[str] = [
             "center",
             "unit_sphere",
